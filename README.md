@@ -2,7 +2,7 @@
 
 Este proyecto es una base de datos relacional que simula la gestión de clientes, pedidos, productos, empleados y proveedores. Está diseñada con buenas prácticas de normalización y uso de claves foráneas.
 
-###Nota: Clona el repositorio para poder visualizar de mejor manera las tablas de los resultados.
+### Nota: Clona el repositorio para poder visualizar de mejor manera las tablas de los resultados.
 
 ## 📌 Características
 
