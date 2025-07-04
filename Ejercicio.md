@@ -160,6 +160,9 @@ CREATE TABLE IF NOT EXISTS DetallesPedidos(
     cantidad INT NOT NULL,
     precio DECIMAL(10,2) NOT NULL
 ) ENGINE = INNODB;
+
+ALTER TABLE DatosEmpleados ADD COLUMN ciudad_id INT,
+ADD CONSTRAINT FK_city_empleado FOREIGN KEY (ciudad_id) REFERENCES Ciudades(id);
 ```
 
 ## 3. Inserts:
@@ -185,10 +188,10 @@ INSERT INTO Ciudades(id,nombre_ciudad,región_id,código_id) VALUES
 (1,'Medellín',1,1),
 (2,'Bucaramanga',2,2);
 
-INSERT INTO DatosEmpleados(id,nombre,salario,puesto_id,fecha_contrato) VALUES
-(1, 'Andrés Suárez', 3500000.00, 1, '2024-05-01'),
-(2, 'Miguel Rojas', 2000000.00, 2, '2022-01-15'),
-(3, 'Fabio Hernández', 2700000.00, 1, '2025-03-20');
+INSERT INTO DatosEmpleados(id,nombre,salario,puesto_id,fecha_contrato, ciudad_id) VALUES
+(1, 'Andrés Suárez', 3500000.00, 1, '2024-05-01',1),
+(2, 'Miguel Rojas', 2000000.00, 2, '2022-01-15',2),
+(3, 'Fabio Hernández', 2700000.00, 1, '2025-03-20',1);
 
 INSERT INTO Ubicaciones(id,dirección,ciudad_id) VALUES
 (1,'Carrera 25 #26-08', 2), 
@@ -522,7 +525,7 @@ WHERE p.id IN (
     SELECT dp.producto_id
     FROM DetallesPedidos dp
     GROUP BY dp.producto_id
-    HAVING SUM(dp.cantidad) > 
+    HAVING SUM(dp.cantidad) > 5 
 );
 
 SELECT pe.id AS Pedido
@@ -531,692 +534,217 @@ WHERE pe.total > (
     SELECT AVG(pe.total)
     FROM Pedidos pe
 );
+
+SELECT p.nombre AS Proveedor
+FROM Proveedores p
+JOIN (
+    SELECT ep.proveedores_id
+    FROM EmpleadosProveedores ep
+    JOIN Productos pro ON ep.proveedores_id = pro.proveedor_id
+    GROUP BY ep.proveedores_id
+    ORDER BY COUNT(pro.id) ASC
+    LIMIT 3) AS top_pro ON p.id = top_pro.proveedores_id;
+
+SELECT tp.tipo_nombre AS Categoria, p.nombre AS Producto, p.precio
+FROM Productos p
+JOIN Tipos_productos tp ON p.tipoproducto_id = tp.id
+WHERE p.precio > (
+    SELECT AVG(pro.precio)
+    FROM Productos pro
+    WHERE pro.tipoproducto_id = p.tipoproducto_id
+);
+
+SELECT c.nombre, COUNT(p.id) AS total_pedidos
+FROM Clientes c
+JOIN Pedidos p ON c.id = p.cliente_id
+GROUP BY c.id, c.nombre
+HAVING COUNT(p.id) > (
+    SELECT AVG(pedidos_por_cliente)
+    FROM (
+        SELECT COUNT(pe.id) AS pedidos_por_cliente
+        FROM Pedidos pe
+        GROUP BY cliente_id
+    ) AS sub
+);
+
+SELECT pro.nombre AS Producto
+FROM Productos pro
+WHERE pro.precio > (
+    SELECT AVG(p2.precio)
+    FROM Productos p2
+);
+
+SELECT e.nombre AS Empleado, e.salario, r.nombre_región
+FROM DatosEmpleados e
+JOIN Ciudades c ON e.ciudad_id = c.id
+JOIN Regiones r ON c.región_id = r.id
+WHERE e.salario < (
+    SELECT AVG(e2.salario)
+    FROM DatosEmpleados e2
+    JOIN Ciudades c2 ON e2.ciudad_id = c2.id
+    JOIN Regiones r2 ON c2.región_id = r2.id
+    WHERE r2.id = r.id
+);
 ```
-
-## 9. Resultados:
-
-### 9.1. TABLAS:
-
-
-+-------------------------+
-| Tables_in_ejerciciocasn |
-+-------------------------+
-| ciudades                |
-| clientes                |
-| contactoproveedores     |
-| código_postal           |
-| datosempleados          |
-| detallespedidos         |
-| emailclientes           |
-| empleadosproveedores    |
-| historialpedidos        |
-| paises                  |
-| pedidos                 |
-| pedidosempleados        |
-| productos               |
-| proveedores             |
-| puestos                 |
-| regiones                |
-| telefonoclientes        |
-| tipocontacto            |
-| tipos_productos         |
-| ubicaciones             |
-+-------------------------+
-20 rows in set (0.00 sec)
-
-01. Ciudades
-+---------------+-------------+------+-----+---------+----------------+
-| Field         | Type        | Null | Key | Default | Extra          |
-+---------------+-------------+------+-----+---------+----------------+
-| id            | int         | NO   | PRI | NULL    | auto_increment |
-| nombre_ciudad | varchar(60) | YES  | UNI | NULL    |                |
-| región_id     | int         | NO   |     | NULL    |                |
-| código_id     | int         | NO   |     | NULL    |                |
-+---------------+-------------+------+-----+---------+----------------+
-4 rows in set (0.00 sec)
-
-02. Clientes
-+-----------------------+--------------+------+-----+---------+----------------+
-| Field                 | Type         | Null | Key | Default | Extra          |
-+-----------------------+--------------+------+-----+---------+----------------+
-| id                    | int          | NO   | PRI | NULL    | auto_increment |
-| nombre                | varchar(100) | NO   |     | NULL    |                |
-| emailclientes_id      | int          | NO   | MUL | NULL    |                |
-| teléfonosclientes_id  | int          | NO   | MUL | NULL    |                |
-| ubicación_id          | int          | YES  | MUL | NULL    |                |
-+-----------------------+--------------+------+-----+---------+----------------+
-5 rows in set (0.00 sec)
-
-03. ContactoProveedores
-+-------------+--------------+------+-----+---------+----------------+
-| Field       | Type         | Null | Key | Default | Extra          |
-+-------------+--------------+------+-----+---------+----------------+
-| id          | int          | NO   | PRI | NULL    | auto_increment |
-| descripcion | varchar(100) | NO   |     | NULL    |                |
-| tipo_id     | int          | YES  | MUL | NULL    |                |
-+-------------+--------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-04. Código_postal
-+--------------+-------------+------+-----+---------+----------------+
-| Field        | Type        | Null | Key | Default | Extra          |
-+--------------+-------------+------+-----+---------+----------------+
-| id           | int         | NO   | PRI | NULL    | auto_increment |
-| descripción  | varchar(10) | YES  | UNI | NULL    |                |
-+--------------+-------------+------+-----+---------+----------------+
-2 rows in set (0.00 sec)
-
-05. DatosEmpleados
-+----------------+---------------+------+-----+---------+----------------+
-| Field          | Type          | Null | Key | Default | Extra          |
-+----------------+---------------+------+-----+---------+----------------+
-| id             | int           | NO   | PRI | NULL    | auto_increment |
-| nombre         | varchar(100)  | NO   |     | NULL    |                |
-| salario        | decimal(10,2) | NO   |     | NULL    |                |
-| puesto_id      | int           | NO   | MUL | NULL    |                |
-| fecha_contrato | date          | NO   |     | NULL    |                |
-+----------------+---------------+------+-----+---------+----------------+
-5 rows in set (0.00 sec)
-
-06. DetallesPedidos
-+-------------+---------------+------+-----+---------+----------------+
-| Field       | Type          | Null | Key | Default | Extra          |
-+-------------+---------------+------+-----+---------+----------------+
-| id          | int           | NO   | PRI | NULL    | auto_increment |
-| pedido_id   | int           | NO   | MUL | NULL    |                |
-| producto_id | int           | NO   | MUL | NULL    |                |
-| cantidad    | int           | NO   |     | NULL    |                |
-| precio      | decimal(10,2) | NO   |     | NULL    |                |
-+-------------+---------------+------+-----+---------+----------------+
-5 rows in set (0.00 sec)
-
-07. EmailClientes
-+-------------+--------------+------+-----+---------+----------------+
-| Field       | Type         | Null | Key | Default | Extra          |
-+-------------+--------------+------+-----+---------+----------------+
-| id          | int          | NO   | PRI | NULL    | auto_increment |
-| descripcion | varchar(100) | NO   |     | NULL    |                |
-| tipo_id     | int          | NO   | MUL | NULL    |                |
-+-------------+--------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-08. EmpleadosProveedores
-+----------------+------+------+-----+---------+-------+
-| Field          | Type | Null | Key | Default | Extra |
-+----------------+------+------+-----+---------+-------+
-| empleados_id   | int  | NO   | PRI | NULL    |       |
-| proveedores_id | int  | NO   | PRI | NULL    |       |
-+----------------+------+------+-----+---------+-------+
-2 rows in set (0.00 sec)
-
-09. HistorialPedidos
-+---------------------+-------------+------+-----+---------+----------------+
-| Field               | Type        | Null | Key | Default | Extra          |
-+---------------------+-------------+------+-----+---------+----------------+
-| id                  | int         | NO   | PRI | NULL    | auto_increment |
-| pedido_id           | int         | NO   | MUL | NULL    |                |
-| fecha_modificación  | date        | NO   |     | NULL    |                |
-| estado_anterior     | varchar(50) | NO   |     | NULL    |                |
-| estado_actual       | varchar(50) | NO   |     | NULL    |                |
-| detalle             | text        | NO   |     | NULL    |                |
-+---------------------+-------------+------+-----+---------+----------------+
-6 rows in set (0.00 sec)
-
-10. Paises
-+--------------+-------------+------+-----+---------+----------------+
-| Field        | Type        | Null | Key | Default | Extra          |
-+--------------+-------------+------+-----+---------+----------------+
-| id           | int         | NO   | PRI | NULL    | auto_increment |
-| nombre_país  | varchar(60) | YES  | UNI | NULL    |                |
-+--------------+-------------+------+-----+---------+----------------+
-2 rows in set (0.00 sec)
-
-11. Pedidos
-+------------+---------------+------+-----+---------+----------------+
-| Field      | Type          | Null | Key | Default | Extra          |
-+------------+---------------+------+-----+---------+----------------+
-| id         | int           | NO   | PRI | NULL    | auto_increment |
-| cliente_id | int           | NO   | MUL | NULL    |                |
-| fecha      | date          | NO   |     | NULL    |                |
-| total      | decimal(10,2) | NO   |     | NULL    |                |
-+------------+---------------+------+-----+---------+----------------+
-4 rows in set (0.00 sec)
-
-12. PedidosEmpleados
-+-------------+------+------+-----+---------+-------+
-| Field       | Type | Null | Key | Default | Extra |
-+-------------+------+------+-----+---------+-------+
-| empleado_id | int  | NO   | PRI | NULL    |       |
-| pedido_id   | int  | NO   | PRI | NULL    |       |
-+-------------+------+------+-----+---------+-------+
-2 rows in set (0.00 sec)
-
-13. Productos
-+-----------------+---------------+------+-----+---------+----------------+
-| Field           | Type          | Null | Key | Default | Extra          |
-+-----------------+---------------+------+-----+---------+----------------+
-| id              | int           | NO   | PRI | NULL    | auto_increment |
-| nombre          | varchar(100)  | NO   |     | NULL    |                |
-| precio          | decimal(10,2) | NO   |     | NULL    |                |
-| proveedor_id    | int           | NO   | MUL | NULL    |                |
-| tipoproducto_id | int           | YES  | MUL | NULL    |                |
-+-----------------+---------------+------+-----+---------+----------------+
-5 rows in set (0.00 sec)
-
-14. Proveedores
-+------------------------+--------------+------+-----+---------+----------------+
-| Field                  | Type         | Null | Key | Default | Extra          |
-+------------------------+--------------+------+-----+---------+----------------+
-| id                     | int          | NO   | PRI | NULL    | auto_increment |
-| nombre                 | varchar(100) | NO   |     | NULL    |                |
-| contactoproveedores_id | int          | NO   | MUL | NULL    |                |
-| ubicacion_id           | int          | YES  | MUL | NULL    |                |
-+------------------------+--------------+------+-----+---------+----------------+
-4 rows in set (0.00 sec)
-
-15. Puestos
-+--------+-------------+------+-----+---------+----------------+
-| Field  | Type        | Null | Key | Default | Extra          |
-+--------+-------------+------+-----+---------+----------------+
-| id     | int         | NO   | PRI | NULL    | auto_increment |
-| puesto | varchar(50) | NO   |     | NULL    |                |
-+--------+-------------+------+-----+---------+----------------+
-2 rows in set (0.00 sec)
-
-16. Regiones
-+----------------+-------------+------+-----+---------+----------------+
-| Field          | Type        | Null | Key | Default | Extra          |
-+----------------+-------------+------+-----+---------+----------------+
-| id             | int         | NO   | PRI | NULL    | auto_increment |
-| nombre_región  | varchar(60) | YES  | UNI | NULL    |                |
-| país_id        | int         | NO   |     | NULL    |                |
-+----------------+-------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-17. TelefonoClientes
-+-------------+--------------+------+-----+---------+----------------+
-| Field       | Type         | Null | Key | Default | Extra          |
-+-------------+--------------+------+-----+---------+----------------+
-| id          | int          | NO   | PRI | NULL    | auto_increment |
-| descripcion | varchar(100) | NO   |     | NULL    |                |
-| tipo_id     | int          | YES  | MUL | NULL    |                |
-+-------------+--------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-18. TipoContacto
-+-------+-------------+------+-----+---------+----------------+
-| Field | Type        | Null | Key | Default | Extra          |
-+-------+-------------+------+-----+---------+----------------+
-| id    | int         | NO   | PRI | NULL    | auto_increment |
-| tipo  | varchar(50) | NO   |     | NULL    |                |
-+-------+-------------+------+-----+---------+----------------+
-2 rows in set (0.00 sec)
-
-19. Tipos_productos
-+--------------+--------------+------+-----+---------+----------------+
-| Field        | Type         | Null | Key | Default | Extra          |
-+--------------+--------------+------+-----+---------+----------------+
-| id           | int          | NO   | PRI | NULL    | auto_increment |
-| tipo_nombre  | varchar(100) | NO   |     | NULL    |                |
-| descripción  | text         | NO   |     | NULL    |                |
-| padre_id     | int          | YES  | MUL | NULL    |                |
-+--------------+--------------+------+-----+---------+----------------+
-4 rows in set (0.00 sec)
-
-20. Ubicaciones
-+------------+--------------+------+-----+---------+----------------+
-| Field      | Type         | Null | Key | Default | Extra          |
-+------------+--------------+------+-----+---------+----------------+
-| id         | int          | NO   | PRI | NULL    | auto_increment |
-| dirección  | varchar(255) | NO   |     | NULL    |                |
-| ciudad_id  | int          | NO   | MUL | NULL    |                |
-+------------+--------------+------+-----+---------+----------------+
-3 rows in set (0.00 sec)
-
-
-### 7.2 Inserts:
-
+## 8. Procedimientos Almacenados:
 ```sql
-INSERT INTO Puestos(id,puesto) VALUES
-    -> (1,'Gerente'),
-    -> (2,'Vendedor'),
-    -> (3,'Administrador');
-Query OK, 3 rows affected (0.35 sec)
-Records: 3  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO Paises(id,nombre_país) VALUES
-    -> (1,'Colombia');
-Query OK, 1 row affected (0.08 sec)
+CREATE PROCEDURE actualizar_precios_proveedor(
+    IN proveedorID INT,
+    IN porcentaje DECIMAL(5,2)
+)
+BEGIN
+    UPDATE Productos
+    SET precio = precio * (1 + porcentaje / 100)
+    WHERE proveedor_id = proveedorID;
+END$$
 
-INSERT INTO Regiones(id,nombre_región,país_id) VALUES
-    -> (1,'Antioquia',1),
-    -> (2,'Santander',1);
-Query OK, 2 rows affected (0.09 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER ;
 
-INSERT INTO Código_postal(id,descripción) VALUES
-    -> (1,'050001'),
-    -> (2,'680001');
-Query OK, 2 rows affected (0.15 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO Ciudades(id,nombre_ciudad,región_id,código_id) VALUES
-    -> (1,'Medellín',1,1),
-    -> (2,'Bucaramanga',2,2);
-Query OK, 2 rows affected (0.05 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+CREATE PROCEDURE obtener_direccion_cliente(
+    IN clienteID INT
+)
+BEGIN
+    SELECT u.dirección
+    FROM Clientes c
+    JOIN Ubicaciones u ON c.ubicación_id = u.id
+    WHERE c.id = clienteID;
+END$$
 
-INSERT INTO DatosEmpleados(id,nombre,salario,puesto_id,fecha_contrato) VALUES
-    -> (1, 'Andrés Suárez', 3500000.00, 1, '2024-05-01'),
-    -> (2, 'Miguel Rojas', 2000000.00, 2, '2022-01-15'),
-    -> (3, 'Fabio Hernández', 2700000.00, 1, '2025-03-20');
-Query OK, 3 rows affected (0.07 sec)
-Records: 3  Duplicates: 0  Warnings: 0
+DELIMITER ;
 
-INSERT INTO Ubicaciones(id,dirección,ciudad_id) VALUES
-    -> (1,'Carrera 25 #26-08', 2),
-    -> (2,'Av. Siempre Viva 742', 1),
-    -> (3,'Calle 60 #9-143',2),
-    -> (4,'Tv. 93 #34-99',2),
-    -> (5,'Cra. 25a #1a Sur 45',1);
-Query OK, 5 rows affected (0.06 sec)
-Records: 5  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO TipoContacto(id,tipo) VALUES
-    -> (1,'Corporativo'),
-    -> (2,'Personal');
-Query OK, 2 rows affected (0.04 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+CREATE PROCEDURE registrar_pedido(
+    IN clienteID INT,
+    IN fechaPedido DATE,
+    IN totalPedido DECIMAL(10,2),
+    IN productoID INT,
+    IN cantidad INT,
+    IN precioUnidad DECIMAL(10,2)
+)
+BEGIN
+    DECLARE nuevoPedidoID INT;
 
-INSERT INTO TelefonoClientes(id,descripcion,tipo_id) VALUES
-    -> (1,'3158325271',2),
-    -> (2,'3167695142',2),
-    -> (3,'6387724',1),
-    -> (4,'3159170124',2),
-    -> (5,'3124532799',2);
-Query OK, 5 rows affected (0.09 sec)
-Records: 5  Duplicates: 0  Warnings: 0
+    INSERT INTO Pedidos (cliente_id, fecha, total)
+    VALUES (clienteID, fechaPedido, totalPedido);
 
-INSERT INTO EmailClientes(id,descripcion,tipo_id) VALUES
-    -> (1,'juanchitomanolargo@gmail.com',2),
-    -> (2,'internautas2005@gmail.com',1),
-    -> (3,'empresajuarez@gmail.com',1),
-    -> (4,'josefer2007@gmail.com',2),
-    -> (5,'simonalcachofa@gmail.com',2);
-Query OK, 5 rows affected (0.56 sec)
-Records: 5  Duplicates: 0  Warnings: 0
+    SET nuevoPedidoID = LAST_INSERT_ID();
 
-INSERT INTO ContactoProveedores(id,descripcion,tipo_id) VALUES
-    -> (1,'3134601033',1),
-    -> (2,'3138430142',1);
-Query OK, 2 rows affected (0.66 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+    INSERT INTO DetallesPedidos (pedido_id, producto_id, cantidad, precio)
+    VALUES (nuevoPedidoID, productoID, cantidad, precioUnidad);
+END$$
 
-INSERT INTO Tipos_productos(id,tipo_nombre,descripción,padre_id) VALUES
-    -> (1, 'Electrónica', 'Productos electrónicos',NULL),
-    -> (2, 'Accesorios', 'Accesorios tecnológicos', 1);
-Query OK, 2 rows affected (0.24 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER ;
 
-INSERT INTO Proveedores(id,nombre,contactoproveedores_id,ubicacion_id) VALUES
-    -> (1, 'Alkatronix',1,4),
-    -> (2, 'Electronix',2,5);
-Query OK, 2 rows affected (0.25 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO EmpleadosProveedores(empleados_id,proveedores_id) VALUES
-    -> (1,1),
-    -> (2,2);
-Query OK, 2 rows affected (0.31 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+CREATE PROCEDURE total_ventas_cliente(
+    IN clienteID INT
+)
+BEGIN
+    SELECT SUM(total) AS total_ventas
+    FROM Pedidos
+    WHERE cliente_id = clienteID;
+END$$
 
-INSERT INTO Productos(id,nombre,precio,proveedor_id,tipoproducto_id) VALUES
-    -> (1,'Laptop Dell',1200.00,1,1),
-    -> (2,'Cable HDMI',15.00,2,2),
-    -> (3,'Mouse inalámbrico',25.00,1,2),
-    -> (4,'Teclado mecánico',85.00,2,2),
-    -> (5,'Webcam HD',50.00,1,2),
-    -> (6,'Monitores QLED',300.00,1,1),
-    -> (7,'Audífonos Gamers',35.00,1,2),
-    -> (8,'USBs',10.00,2,2),
-    -> (9,'Luces Led',30.00,1,2),
-    -> (10,'Micróno UHQ',250.00,1,2);
-Query OK, 10 rows affected (0.10 sec)
-Records: 10  Duplicates: 0  Warnings: 0
+DELIMITER ;
 
-INSERT INTO Clientes(id,nombre,emailclientes_id,teléfonosclientes_id,ubicación_id) VALUES
-    -> (1,'Juan López',1,1,1),
-    -> (2,'María Gómez',2,2,2),
-    -> (3,'Juan Alcachofa',3,3,3),
-    -> (4,'José Fernández',4,4,4),
-    -> (5,'Simón Rubiano',5,5,NULL);
-Query OK, 5 rows affected (0.10 sec)
-Records: 5  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO Pedidos(id,cliente_id,fecha,total) VALUES
-    -> (1,1,'2025-06-01',1215000.00),
-    -> (2,2,'2025-06-05',10000000.00),
-    -> (3,4,'2025-06-19',3000000.00);
-Query OK, 3 rows affected (0.09 sec)
-Records: 3  Duplicates: 0  Warnings: 0
+CREATE PROCEDURE empleados_por_puesto(
+    IN puestoID INT
+)
+BEGIN
+    SELECT id, nombre, salario
+    FROM DatosEmpleados
+    WHERE puesto_id = puestoID;
+END$$
 
-INSERT INTO PedidosEmpleados(empleado_id, pedido_id) VALUES
-    -> (1,1),
-    -> (3,2);
-Query OK, 2 rows affected (0.09 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER ;
 
-INSERT INTO HistorialPedidos(id,pedido_id,fecha_modificación,estado_anterior,estado_actual,detalle) VALUES
-    -> (1,1,'2024-06-01','en proceso','verificado','el cliente recibió su pedido'),
-    -> (2,2,'2024-06-05','en proceso','cancelado','el cliente canceló su pedido');
-Query OK, 2 rows affected (0.30 sec)
-Records: 2  Duplicates: 0  Warnings: 0
+DELIMITER $$
 
-INSERT INTO DetallesPedidos(id,pedido_id,producto_id,cantidad,precio) VALUES
-    -> (1,1,1,1,1200.00),
-    -> (2,1,2,1,15.00),
-    -> (3,2,2,2,30.00),
-    -> (4,2,3,1,25.00),
-    -> (5,2,5,1, 45.00);
-Query OK, 5 rows affected (0.09 sec)
-Records: 5  Duplicates: 0  Warnings: 0
+CREATE PROCEDURE actualizar_salario_por_puesto(
+    IN puestoID INT,
+    IN porcentaje DECIMAL(5,2)
+)
+BEGIN
+    UPDATE DatosEmpleados
+    SET salario = salario * (1 + porcentaje / 100)
+    WHERE puesto_id = puestoID;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE pedidos_entre_fechas(
+    IN fechaInicio DATE,
+    IN fechaFin DATE
+)
+BEGIN
+    SELECT *
+    FROM Pedidos
+    WHERE fecha BETWEEN fechaInicio AND fechaFin;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE aplicar_descuento_categoria(
+    IN categoriaID INT,
+    IN porcentaje DECIMAL(5,2)
+)
+BEGIN
+    UPDATE Productos
+    SET precio = precio * (1 - porcentaje / 100)
+    WHERE tipoproducto_id = categoriaID;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE proveedores_por_tipo_producto(
+    IN tipoID INT
+)
+BEGIN
+    SELECT DISTINCT p.id, p.nombre
+    FROM Proveedores p
+    JOIN EmpleadosProveedores ep ON p.id = ep.proveedores_id
+    JOIN Productos pr ON ep.proveedores_id = pr.proveedor_id
+    WHERE pr.tipoproducto_id = tipoID;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE pedido_mayor_valor()
+BEGIN
+    SELECT *
+    FROM Pedidos
+    ORDER BY total DESC
+    LIMIT 1;
+END$$
+
+DELIMITER ;
 ```
-
-### 7.3 Joins:
-
-
-+----+-------------+-------------+------------------+
-| id | FechaPedido | TotalPedido | Cliente          |
-+----+-------------+-------------+------------------+
-|  1 | 2025-06-01  |  1215000.00 | Juan López       |
-|  2 | 2025-06-05  | 10000000.00 | María Gómez      |
-|  3 | 2025-06-19  |  3000000.00 | José Fernández   |
-+----+-------------+-------------+------------------+
-3 rows in set (0.00 sec)
-
-+----+--------------------+------------+
-| id | Productos          | nombre     |
-+----+--------------------+------------+
-|  1 | Laptop Dell        | Alkatronix |
-|  3 | Mouse inalámbrico  | Alkatronix |
-|  5 | Webcam HD          | Alkatronix |
-|  6 | Monitores QLED     | Alkatronix |
-|  7 | Audífonos Gamers   | Alkatronix |
-|  9 | Luces Led          | Alkatronix |
-| 10 | Micróno UHQ        | Alkatronix |
-|  2 | Cable HDMI         | Electronix |
-|  4 | Teclado mecánico   | Electronix |
-|  8 | USBs               | Electronix |
-+----+--------------------+------------+
-10 rows in set (0.00 sec)
-
-+--------+------------------+----------------------+-------------+--------------+----------+
-| Pedido | Cliente          | Dirección            | Ciudad      | Departamento | País     |
-+--------+------------------+----------------------+-------------+--------------+----------+
-|      1 | Juan López       | Carrera 25 #26-08    | Bucaramanga | Santander    | Colombia |
-|      2 | María Gómez      | Av. Siempre Viva 742 | Medellín    | Antioquia    | Colombia |
-|      3 | José Fernández   | Tv. 93 #34-99        | Bucaramanga | Santander    | Colombia |
-+--------+------------------+----------------------+-------------+--------------+----------+
-3 rows in set (0.00 sec)
-
-+------------------+--------+
-| Empleado         | Pedido |
-+------------------+--------+
-| Andrés Suárez    |      1 |
-| Miguel Rojas     |   NULL |
-| Fabio Hernández  |      2 |
-+------------------+--------+
-3 rows in set (0.00 sec)
-
-+--------------+----+--------------------+
-| TipoProducto | id | Producto           |
-+--------------+----+--------------------+
-| Electrónica  |  1 | Laptop Dell        |
-| Electrónica  |  6 | Monitores QLED     |
-| Accesorios   |  2 | Cable HDMI         |
-| Accesorios   |  3 | Mouse inalámbrico  |
-| Accesorios   |  4 | Teclado mecánico   |
-| Accesorios   |  5 | Webcam HD          |
-| Accesorios   |  7 | Audífonos Gamers   |
-| Accesorios   |  8 | USBs               |
-| Accesorios   |  9 | Luces Led          |
-| Accesorios   | 10 | Micróno UHQ        |
-+--------------+----+--------------------+
-10 rows in set (0.00 sec)
-
-+------------------+--------------+
-| Cliente          | TotalPedidos |
-+------------------+--------------+
-| Juan López       |            1 |
-| María Gómez      |            1 |
-| Juan Alcachofa   |            0 |
-| José Fernández   |            1 |
-| Simón Rubiano    |            0 |
-+------------------+--------------+
-5 rows in set (0.00 sec)
-
-+--------+------------+------------------+
-| Pedido | Fecha      | Empleado         |
-+--------+------------+------------------+
-|      1 | 2025-06-01 | Andrés Suárez    |
-|      2 | 2025-06-05 | Fabio Hernández  |
-+--------+------------+------------------+
-2 rows in set (0.00 sec)
-
-+-------------------+
-| Producto          |
-+-------------------+
-| Teclado mecánico  |
-| Monitores QLED    |
-| Audífonos Gamers  |
-| USBs              |
-| Luces Led         |
-| Micróno UHQ       |
-+-------------------+
-6 rows in set (0.00 sec)
-
-+------------------+--------------+----------------------+-------------+--------------+----------+
-| Cliente          | TotalPedidos | Dirección            | Ciudad      | Departamento | País     |
-+------------------+--------------+----------------------+-------------+--------------+----------+
-| María Gómez      |            1 | Av. Siempre Viva 742 | Medellín    | Antioquia    | Colombia |
-| Juan López       |            1 | Carrera 25 #26-08    | Bucaramanga | Santander    | Colombia |
-| Juan Alcachofa   |            0 | Calle 60 #9-143      | Bucaramanga | Santander    | Colombia |
-| José Fernández   |            1 | Tv. 93 #34-99        | Bucaramanga | Santander    | Colombia |
-+------------------+--------------+----------------------+-------------+--------------+----------+
-4 rows in set (0.00 sec)
-
-+------------+--------------------+--------------+
-| Proveedor  | Producto           | TipoProducto |
-+------------+--------------------+--------------+
-| Alkatronix | Monitores QLED     | Electrónica  |
-| Alkatronix | Laptop Dell        | Electrónica  |
-| Electronix | USBs               | Accesorios   |
-| Electronix | Teclado mecánico   | Accesorios   |
-| Electronix | Cable HDMI         | Accesorios   |
-| Alkatronix | Micróno UHQ        | Accesorios   |
-| Alkatronix | Luces Led          | Accesorios   |
-| Alkatronix | Audífonos Gamers   | Accesorios   |
-| Alkatronix | Webcam HD          | Accesorios   |
-| Alkatronix | Mouse inalámbrico  | Accesorios   |
-+------------+--------------------+--------------+
-10 rows in set (0.00 sec)
-
-
-### 7.4 Consultas Simples:
-
-+----+-------------------+---------+
-| id | Producto          | Precio  |
-+----+-------------------+---------+
-|  1 | Laptop Dell       | 1200.00 |
-|  4 | Teclado mecánico  |   85.00 |
-|  6 | Monitores QLED    |  300.00 |
-| 10 | Micróno UHQ       |  250.00 |
-+----+-------------------+---------+
-4 rows in set (0.00 sec)
-
-+----+------------------+---------------+
-| id | Nombre           | nombre_ciudad |
-+----+------------------+---------------+
-|  1 | Juan López       | Bucaramanga   |
-|  3 | Juan Alcachofa   | Bucaramanga   |
-|  4 | José Fernández   | Bucaramanga   |
-+----+------------------+---------------+
-3 rows in set (0.00 sec)
-
-+------------------+--------------------+
-| Empleado         | FechaContratación  |
-+------------------+--------------------+
-| Andrés Suárez    | 2024-05-01         |
-| Fabio Hernández  | 2025-03-20         |
-+------------------+--------------------+
-2 rows in set (0.00 sec)
-
-+------------+-----------+
-| Proveedor  | Productos |
-+------------+-----------+
-| Alkatronix |         7 |
-+------------+-----------+
-1 row in set (0.00 sec)
-
-+----------------+
-| Cliente        |
-+----------------+
-| Simón Rubiano  |
-+----------------+
-1 row in set (0.00 sec)
-
-+------------------+-------------+
-| nombre           | TotalVentas |
-+------------------+-------------+
-| Juan López       |  1215000.00 |
-| María Gómez      | 10000000.00 |
-| José Fernández   |  3000000.00 |
-+------------------+-------------+
-3 rows in set (0.00 sec)
-
-+-----------------+
-| SalarioPromedio |
-+-----------------+
-|  2733333.333333 |
-+-----------------+
-1 row in set (0.00 sec)
-
-+----+--------------+
-| id | TipoProducto |
-+----+--------------+
-|  1 | Electrónica  |
-|  2 | Accesorios   |
-+----+--------------+
-2 rows in set (0.00 sec)
-
-+----+----------------+---------+
-| id | Producto       | Precio  |
-+----+----------------+---------+
-|  1 | Laptop Dell    | 1200.00 |
-|  6 | Monitores QLED |  300.00 |
-| 10 | Micróno UHQ    |  250.00 |
-+----+----------------+---------+
-3 rows in set (0.00 sec)
-
-+----+-------------+--------------+
-| id | Cliente     | TotalPedidos |
-+----+-------------+--------------+
-|  1 | Juan López  |            1 |
-+----+-------------+--------------+
-1 row in set (0.00 sec)
-
-## 7.5 Consultas multitablas:
-
-+----------+------------------+
-| IdPedido | Cliente          |
-+----------+------------------+
-|        1 | Juan López       |
-|        2 | María Gómez      |
-|        3 | José Fernández   |
-+----------+------------------+
-3 rows in set (0.00 sec)
-
-+----------+------------------+----------------------+-------------+--------------+----------+
-| IdPedido | Cliente          | Dirección            | Ciudad      | Departamento | País     |
-+----------+------------------+----------------------+-------------+--------------+----------+
-|        2 | María Gómez      | Av. Siempre Viva 742 | Medellín    | Antioquia    | Colombia |
-|        1 | Juan López       | Carrera 25 #26-08    | Bucaramanga | Santander    | Colombia |
-|        3 | José Fernández   | Tv. 93 #34-99        | Bucaramanga | Santander    | Colombia |
-+----------+------------------+----------------------+-------------+--------------+----------+
-3 rows in set (0.00 sec)
-
-+----+--------------------+----------------+------------+
-| id | Producto           | TiposProductos | Proveedor  |
-+----+--------------------+----------------+------------+
-| 10 | Micróno UHQ        | Accesorios     | Alkatronix |
-|  9 | Luces Led          | Accesorios     | Alkatronix |
-|  7 | Audífonos Gamers   | Accesorios     | Alkatronix |
-|  5 | Webcam HD          | Accesorios     | Alkatronix |
-|  3 | Mouse inalámbrico  | Accesorios     | Alkatronix |
-|  6 | Monitores QLED     | Electrónica    | Alkatronix |
-|  1 | Laptop Dell        | Electrónica    | Alkatronix |
-|  8 | USBs               | Accesorios     | Electronix |
-|  4 | Teclado mecánico   | Accesorios     | Electronix |
-|  2 | Cable HDMI         | Accesorios     | Electronix |
-+----+--------------------+----------------+------------+
-10 rows in set (0.00 sec)
-
-+------------------+-----------+
-| Empleado         | Ciudad    |
-+------------------+-----------+
-| Fabio Hernández  | Medellín  |
-+------------------+-----------+
-1 row in set (0.00 sec)
-
-+----+--------------------+-------+
-| id | Producto           | Total |
-+----+--------------------+-------+
-|  2 | Cable HDMI         |     3 |
-|  1 | Laptop Dell        |     1 |
-|  3 | Mouse inalámbrico  |     1 |
-|  5 | Webcam HD          |     1 |
-+----+--------------------+-------+
-4 rows in set (0.00 sec)
-
-+------------------+-------------+--------------+
-| Cliente          | Ciudad      | TotalPedidos |
-+------------------+-------------+--------------+
-| Juan López       | Bucaramanga |            1 |
-| José Fernández   | Bucaramanga |            1 |
-| María Gómez      | Medellín    |            1 |
-+------------------+-------------+--------------+
-3 rows in set (0.00 sec)
-
-+------------------+------------+-------------+
-| Cliente          | Proveedor  | Ciudad      |
-+------------------+------------+-------------+
-| Juan López       | Alkatronix | Bucaramanga |
-| Juan Alcachofa   | Alkatronix | Bucaramanga |
-| José Fernández   | Alkatronix | Bucaramanga |
-| María Gómez      | Electronix | Medellín    |
-+------------------+------------+-------------+
-4 rows in set (0.00 sec)
-
-+----------------+-------------+
-| TiposProductos | TotalVentas |
-+----------------+-------------+
-| Electrónica    |     1200.00 |
-| Accesorios     |      145.00 |
-+----------------+-------------+
-2 rows in set (0.00 sec)
-
-+------------------+------------+
-| Empleado         | Proveedor  |
-+------------------+------------+
-| Andrés Suárez    | Electronix |
-| Fabio Hernández  | Electronix |
-+------------------+------------+
-2 rows in set (0.00 sec)
-
-+------------+--------------+
-| Proveedor  | IngresoTotal |
-+------------+--------------+
-| Alkatronix |      1270.00 |
-| Electronix |        75.00 |
-+------------+--------------+
-2 rows in set (0.00 sec)
+### 8.1. Calls:
+```sql
+CALL actualizar_precios_proveedor(1, 10);
+CALL obtener_direccion_cliente(3);
+CALL registrar_pedido(2, '2025-07-04', 150.00, 10, 2, 75.00);
+CALL total_ventas_cliente(2);
+CALL empleados_por_puesto(1);
+CALL actualizar_salario_por_puesto(1, 5);
+CALL pedidos_entre_fechas('2025-01-01', '2025-06-30');
+CALL aplicar_descuento_categoria(2, 20);
+CALL proveedores_por_tipo_producto(2);
+CALL pedido_mayor_valor();
+```
