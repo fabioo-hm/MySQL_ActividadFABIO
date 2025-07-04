@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS Productos (
     proveedor_id INT NOT NULL,
     tipoproducto_id INT NULL,
     CONSTRAINT FK_proveedor_id FOREIGN KEY (proveedor_id) REFERENCES EmpleadosProveedores(proveedores_id),
-    CONSTRAINT FK_tipoproducto_id FOREIGN KEY (tipoproducto_id) REFERENCES Tipos_Productos(id)
+    CONSTRAINT FK_tipoproducto_id FOREIGN KEY (tipoproducto_id) REFERENCES Tipos_productos(id)
 ) ENGINE = INNODB;
 
 CREATE TABLE IF NOT EXISTS Clientes (
@@ -488,10 +488,54 @@ JOIN Productos pro ON prov.id = pro.proveedor_id
 JOIN DetallesPedidos dp ON pro.id = dp.producto_id
 GROUP BY prov.id;
 ```
+## 7. Subconsultas:
+```sql
+SELECT tp.tipo_nombre AS categoria, p.nombre AS producto, p.precio
+FROM Productos p
+JOIN Tipos_productos tp ON p.tipoproducto_id = tp.id
+WHERE (p.tipoproducto_id, p.precio) IN (
+    SELECT tipoproducto_id, MAX(precio)
+    FROM Productos
+    GROUP BY tipoproducto_id
+);
 
-## 7. Resultados:
+SELECT cl.nombre AS Cliente, sub.cantidad_pedidos
+FROM Clientes cl
+JOIN (
+    SELECT cliente_id, COUNT(pe.id) AS cantidad_pedidos
+    FROM Pedidos pe
+    GROUP BY cliente_id
+    ORDER BY cantidad_pedidos DESC
+    LIMIT 1
+) sub ON cl.id = sub.cliente_id;
 
-### 7.1. TABLAS:
+SELECT em.nombre AS Nombre_Empleado, em.salarios AS Salario
+FROM DatosEmpleados em
+WHERE em.salario > (
+    SELECT AVG(em.salario)
+    FROM DatosEmpleados em
+);
+
+SELECT p.nombre AS Producto
+FROM Productos p
+WHERE p.id IN (
+    SELECT dp.producto_id
+    FROM DetallesPedidos dp
+    GROUP BY dp.producto_id
+    HAVING SUM(dp.cantidad) > 
+);
+
+SELECT pe.id AS Pedido
+FROM Pedidos pe
+WHERE pe.total > (
+    SELECT AVG(pe.total)
+    FROM Pedidos pe
+);
+```
+
+## 9. Resultados:
+
+### 9.1. TABLAS:
 
 
 +-------------------------+
